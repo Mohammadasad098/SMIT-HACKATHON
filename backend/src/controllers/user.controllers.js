@@ -26,31 +26,29 @@ const generateRefreshToken = (user) => {
 const registerUser = async (req, res) => {
   const { userName, email, password } = req.body;
 
-  // Validate inputs
+
   if (!userName) return res.status(400).json({ message: "username required" });
   if (!email) return res.status(400).json({ message: "email required" });
   if (!password) return res.status(400).json({ message: "password required" });
 
   try {
-    // Check if user already exists
     const user = await User.findOne({ email });
     if (user) return res.status(401).json({ message: "user already exists" });
 
-    // Create new user
+
     const createUser = await User.create({
       userName,
       email,
       password,
     });
 
-    // Generate tokens
+
     const accessToken = generateAccessToken(createUser);
     const refreshToken = generateRefreshToken(createUser);
 
-    // Set refresh token in cookie
     res.cookie("refreshToken", refreshToken, { httpOnly: true, secure: false });
 
-    // Return response with tokens and user data
+
     res.json({
       message: "user registered and logged in successfully",
       accessToken,
@@ -68,28 +66,20 @@ const registerUser = async (req, res) => {
 const loginUser = async (req, res) => {
   const { email, password } = req.body;
 
-  // Validate inputs
+
   if (!email) return res.status(400).json({ message: "email required" });
   if (!password) return res.status(400).json({ message: "password required" });
 
   try {
-    // Find user
     const user = await User.findOne({ email });
     if (!user) return res.status(404).json({ message: "no user found" });
 
-    // Validate password
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid)
       return res.status(400).json({ message: "incorrect password" });
-
-    // Generate tokens
     const accessToken = generateAccessToken(user);
     const refreshToken = generateRefreshToken(user);
-
-    // Set refresh token in cookie
     res.cookie("refreshToken", refreshToken, { httpOnly: true, secure: false });
-
-    // Return response with tokens and user data
     res.json({
       message: "user logged in successfully",
       accessToken,
@@ -105,4 +95,21 @@ const loginUser = async (req, res) => {
 };
 
 
-  export {registerUser , loginUser}
+const logoutUser = async (req, res) => {
+  res.clearCookie("refreshToken");
+  res.json({ message: "user logout successfully" });
+};
+
+const refreshToken = async (req, res) => {
+  const refreshToken = req.cookies.refreshToken || req.body.refreshToken;
+  if (!refreshToken)
+    return res.status(401).json({ message: "no refresh token found!" });
+  const decodedToken = jwt.verify(refreshToken, process.env.REFRESH_JWT_SECRET);
+  const user = await User.findOne({ email: decodedToken.email });
+  if (!user) return res.status(404).json({ message: "invalid token" });
+  const generateToken = generateAccessToken(user);
+  res.json({ message: "access token generated", accesstoken: generateToken });
+  res.json({ decodedToken });
+};
+
+export { registerUser, loginUser , logoutUser , refreshToken} 
